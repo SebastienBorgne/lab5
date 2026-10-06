@@ -46,3 +46,6 @@ Observation par l'identifiant
 
 Observations par date
 ![alt text](image-2.png)
+
+Observations par nom commun
+![alt text](image-3.png)

@@ -96,7 +96,7 @@ Partition utilisée : `observed_on`, ce qui évite un scan de toutes les observa
 ```sql
 SELECT observation_id, scientific_name, observed_on, latitude, longitude
 FROM observations_by_common_name
-WHERE common_name = 'Grey Heron'
+WHERE common_name = 'Dark-eyed Junco'
 LIMIT 20;
 ```
 
