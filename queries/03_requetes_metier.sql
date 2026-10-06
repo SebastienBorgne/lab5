@@ -12,7 +12,7 @@ LIMIT 20;
 
 -- REQ-03 : retrouver les observations d'une espèce à une date donnée.
 SELECT observation_id, common_name, latitude, longitude
-FROM observations_by_species
+FROM observations_by_species_date
 WHERE scientific_name = 'Ardea cinerea'
   AND observed_on = '2026-10-06';
 
@@ -22,8 +22,8 @@ FROM observations_by_date
 WHERE observed_on = '2026-10-06'
 LIMIT 50;
 
--- REQ-05 : compter les observations d'une espèce pour une date donnée.
-SELECT COUNT(*)
-FROM observations_by_species
-WHERE scientific_name = 'Ardea cinerea'
-  AND observed_on = '2026-10-06';
+-- REQ-05 : rechercher les observations par nom commun.
+SELECT observation_id, scientific_name, observed_on, latitude, longitude
+FROM observations_by_common_name
+WHERE common_name = 'Grey Heron'
+LIMIT 20;

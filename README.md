@@ -6,11 +6,13 @@ Le sujet est l’observation des oiseaux. Les données proviennent de l’API iN
 
 ## Modèle Cassandra
 
-Le keyspace est `birds`. Le projet alimente trois tables adaptées aux requêtes prévues :
+Le keyspace est `birds`. Le projet alimente cinq tables, chacune adaptée à un besoin de lecture :
 
 - `observations` : lecture directe par `observation_id` (clé de partition) ;
-- `observations_by_date` : lecture par date (clé de partition), puis ID d’observation (clustering) ;
-- `observations_by_species` : lecture par nom scientifique (clé de partition), puis date décroissante et ID (clustering).
+- `observations_by_species` : lecture des observations récentes d’une espèce ;
+- `observations_by_species_date` : lecture d’une espèce à une date précise ;
+- `observations_by_date` : lecture de toutes les observations d’une date ;
+- `observations_by_common_name` : lecture par nom commun, des plus récentes aux plus anciennes.
 
 Les définitions sont dans [`queries/01_schema.sql`](queries/01_schema.sql) et la justification détaillée des clés dans [`documentation/modelisation.md`](documentation/modelisation.md).
 

@@ -25,6 +25,8 @@ CASSANDRA_KEYSPACE = required_env("CASSANDRA_KEYSPACE")
 CASSANDRA_TABLE = required_env("CASSANDRA_TABLE")
 CASSANDRA_BY_DATE_TABLE = required_env("CASSANDRA_BY_DATE_TABLE")
 CASSANDRA_BY_SPECIES_TABLE = required_env("CASSANDRA_BY_SPECIES_TABLE")
+CASSANDRA_BY_SPECIES_DATE_TABLE = required_env("CASSANDRA_BY_SPECIES_DATE_TABLE")
+CASSANDRA_BY_COMMON_NAME_TABLE = required_env("CASSANDRA_BY_COMMON_NAME_TABLE")
 CASSANDRA_REPLICATION_FACTOR = int(required_env("CASSANDRA_REPLICATION_FACTOR"))
 
 for setting_name, identifier in (
@@ -32,6 +34,8 @@ for setting_name, identifier in (
     ("CASSANDRA_TABLE", CASSANDRA_TABLE),
     ("CASSANDRA_BY_DATE_TABLE", CASSANDRA_BY_DATE_TABLE),
     ("CASSANDRA_BY_SPECIES_TABLE", CASSANDRA_BY_SPECIES_TABLE),
+    ("CASSANDRA_BY_SPECIES_DATE_TABLE", CASSANDRA_BY_SPECIES_DATE_TABLE),
+    ("CASSANDRA_BY_COMMON_NAME_TABLE", CASSANDRA_BY_COMMON_NAME_TABLE),
 ):
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", identifier):
         raise RuntimeError(f"{setting_name} must be a valid CQL identifier")
@@ -107,6 +111,27 @@ def insert_data(df: pd.DataFrame) -> int:
             "PRIMARY KEY ((scientific_name), observed_on, observation_id)) "
             "WITH CLUSTERING ORDER BY (observed_on DESC, observation_id ASC)"
         )
+        session.execute(
+            f"CREATE TABLE IF NOT EXISTS {CASSANDRA_BY_SPECIES_DATE_TABLE} ("
+            "scientific_name text, "
+            "observed_on date, "
+            "observation_id bigint, "
+            "common_name text, "
+            "latitude double, "
+            "longitude double, "
+            "PRIMARY KEY ((scientific_name, observed_on), observation_id))"
+        )
+        session.execute(
+            f"CREATE TABLE IF NOT EXISTS {CASSANDRA_BY_COMMON_NAME_TABLE} ("
+            "common_name text, "
+            "observed_on date, "
+            "observation_id bigint, "
+            "scientific_name text, "
+            "latitude double, "
+            "longitude double, "
+            "PRIMARY KEY ((common_name), observed_on, observation_id)) "
+            "WITH CLUSTERING ORDER BY (observed_on DESC, observation_id ASC)"
+        )
         observation_statement = session.prepare(
             f"INSERT INTO {CASSANDRA_TABLE} "
             "(observation_id, common_name, scientific_name, observed_on, latitude, longitude) "
@@ -120,6 +145,16 @@ def insert_data(df: pd.DataFrame) -> int:
         species_statement = session.prepare(
             f"INSERT INTO {CASSANDRA_BY_SPECIES_TABLE} "
             "(scientific_name, observed_on, observation_id, common_name, latitude, longitude) "
+            "VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        species_date_statement = session.prepare(
+            f"INSERT INTO {CASSANDRA_BY_SPECIES_DATE_TABLE} "
+            "(scientific_name, observed_on, observation_id, common_name, latitude, longitude) "
+            "VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        common_name_statement = session.prepare(
+            f"INSERT INTO {CASSANDRA_BY_COMMON_NAME_TABLE} "
+            "(common_name, observed_on, observation_id, scientific_name, latitude, longitude) "
             "VALUES (?, ?, ?, ?, ?, ?)"
         )
 
@@ -168,6 +203,29 @@ def insert_data(df: pd.DataFrame) -> int:
                             observed_on,
                             cql_observation_id,
                             common_name,
+                            latitude,
+                            longitude,
+                        ),
+                    )
+                    session.execute(
+                        species_date_statement,
+                        (
+                            scientific_name,
+                            observed_on,
+                            cql_observation_id,
+                            common_name,
+                            latitude,
+                            longitude,
+                        ),
+                    )
+                if common_name is not None:
+                    session.execute(
+                        common_name_statement,
+                        (
+                            common_name,
+                            observed_on,
+                            cql_observation_id,
+                            scientific_name,
                             latitude,
                             longitude,
                         ),

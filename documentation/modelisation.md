@@ -8,6 +8,8 @@ Cassandra ne prend pas en charge les requêtes ad hoc comme une base relationnel
 
 ## Tables et clés
 
+Chaque table correspond à un besoin d’accès. Les mêmes observations sont volontairement copiées dans plusieurs tables.
+
 ### `birds.observations`
 
 - Colonnes : `observation_id`, `common_name`, `scientific_name`, `observed_on`, `latitude`, `longitude`.
@@ -30,7 +32,21 @@ Cassandra ne prend pas en charge les requêtes ad hoc comme une base relationnel
 - Clés de clustering : `observed_on DESC`, puis `observation_id ASC`.
 - Usage : consulter les observations d’une espèce, les plus récentes d’abord, ou filtrer cette espèce sur une date.
 
-Les observations sans date ne peuvent pas alimenter les tables partitionnées par date. Celles sans nom scientifique ne peuvent pas alimenter `observations_by_species`; elles restent dans la table principale.
+### `birds.observations_by_species_date`
+
+- Clé primaire : `((scientific_name, observed_on), observation_id)`.
+- Clé de partition composite : `scientific_name` et `observed_on`.
+- Clé de clustering : `observation_id`.
+- Usage : consulter une espèce à une date exacte, avec une partition plus ciblée que la table par espèce.
+
+### `birds.observations_by_common_name`
+
+- Clé primaire : `((common_name), observed_on, observation_id)`.
+- Clé de partition : `common_name`.
+- Clés de clustering : `observed_on DESC`, puis `observation_id ASC`.
+- Usage : consulter les observations par nom commun, des plus récentes aux plus anciennes.
+
+Les observations sans date n’alimentent pas les tables partitionnées par date. Celles sans nom scientifique ou nom commun ne peuvent pas alimenter les projections correspondantes, mais restent dans `observations`.
 
 ## Requêtes métier
 
@@ -57,12 +73,12 @@ Partition utilisée : `scientific_name`. Le clustering par date décroissante fo
 
 ```sql
 SELECT observation_id, common_name, latitude, longitude
-FROM observations_by_species
+FROM observations_by_species_date
 WHERE scientific_name = 'Ardea cinerea'
   AND observed_on = '2026-10-06';
 ```
 
-Partition utilisée : `scientific_name`; `observed_on` est la première clé de clustering et permet de réduire la lecture.
+Partition utilisée : `(scientific_name, observed_on)` dans `observations_by_species_date`. La date fait partie de la clé de partition, ce qui cible directement cette combinaison.
 
 ### REQ-04 — Lister les observations d’une journée
 
@@ -75,17 +91,17 @@ LIMIT 50;
 
 Partition utilisée : `observed_on`, ce qui évite un scan de toutes les observations.
 
-### REQ-05 — Compter les observations d’une espèce à une date
+### REQ-05 — Rechercher les observations par nom commun
 
 ```sql
-SELECT COUNT(*)
-FROM observations_by_species
-WHERE scientific_name = 'Ardea cinerea'
-  AND observed_on = '2026-10-06';
+SELECT observation_id, scientific_name, observed_on, latitude, longitude
+FROM observations_by_common_name
+WHERE common_name = 'Grey Heron'
+LIMIT 20;
 ```
 
-Partition utilisée : `scientific_name`; la date limite la lecture à la plage de clustering correspondante.
+Partition utilisée : `common_name`; le clustering fournit les observations récentes en premier.
 
 ## Cohérence et limites
 
-Une observation est écrite dans la table principale et, si ses clés sont présentes, dans les tables par date et par espèce. Les mêmes clés primaires rendent les insertions répétées idempotentes. Cassandra ne fournit pas de transaction atomique entre ces trois tables : un échec pendant les écritures peut temporairement laisser des copies désynchronisées. Le facteur de réplication vaut 1 pour le TP mono-nœud; il ne fournit donc pas de tolérance à la perte du nœud.
+Une observation est écrite dans la table principale et, si ses clés sont présentes, dans chaque projection correspondante. Les mêmes clés primaires rendent les insertions répétées idempotentes. Cassandra ne fournit pas de transaction atomique entre ces cinq tables : un échec pendant les écritures peut temporairement laisser des copies désynchronisées. Le facteur de réplication vaut 1 pour le TP mono-nœud; il ne fournit donc pas de tolérance à la perte du nœud.
